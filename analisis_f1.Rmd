@@ -1,0 +1,166 @@
+---
+title: "Análisis Exploratorio de Datos: Fórmula 1"
+subtitle: "Laboratorio de Datos 1"
+author: "Luca Franco Mengarelli"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# ESTO OCULTA LOS MENSAJES ROJOS AL COMPILAR
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# LIBRERÍAS SIEMPRE NECESARIAS
+library(tidyverse)
+library(janitor)
+library(readxl)
+```
+
+# 1. IMPORTACIÓN Y LIMPIEZA
+
+```{r importacion}
+# Leer las bases de datos y limpiar nombres
+carreras <- read_csv("data/carreras.csv") %>% clean_names()
+conductores <- read_csv("data/conductores.csv") %>% clean_names()
+constructores <- read_csv("data/constructores.csv") %>% clean_names()
+resultados <- read_csv("data/resultados.csv") %>% clean_names()
+
+# Unimos las bases (JOIN)
+# Primero unimos los resultados con los datos de la carrera (manteniendo todos los resultados)
+df_unido <- left_join(resultados, carreras, by = "id_carrera")
+
+# Luego sumamos los conductores y constructores
+df_unido <- left_join(df_unido, conductores, by = "id_conductor")
+df_unido <- left_join(df_unido, constructores, by = "id_constructor")
+
+# Limpieza final de valores nulos
+df_limpio <- df_unido %>% drop_na()
+```
+
+# 2. TRANSFORMACIÓN DE DATOS (VERBOS DPLYR)
+
+```{r manipulacion}
+df_final <- df_limpio %>%
+  # Crear nueva columna para tener el tiempo en minutos en vez de milisegundos
+  mutate(minutos_carrera = milisegundos / 60000) %>%
+  # Filtrar carreras extremadamente cortas o atípicas (ej. menores a 30 mins)
+  filter(minutos_carrera > 30) %>%
+  # Seleccionar columnas relevantes para el análisis
+  select(id_resultado, nombre_x, nombre_y, apellido, nacionalidad_x,
+         lluvia, estado, pos_inicial, pos_final, minutos_carrera) %>%
+  # Renombrar columnas para evitar confusiones post-join
+  rename(
+    nombre_carrera = nombre_x,
+    nombre_escuderia = nombre_y,
+    nacionalidad_piloto = nacionalidad_x
+  ) %>%
+  # Ordenar de mayor a menor tiempo
+  arrange(desc(minutos_carrera))
+```
+
+# 3. ANÁLISIS UNIVARIADO
+
+## 3.1. Variable Categórica (Cualitativa): Estado de finalización
+
+```{r univariado-cat}
+# TABLA: Frecuencias y Porcentajes
+tabla_cat <- tabyl(df_final, estado) %>% 
+  adorn_totals("row") %>% 
+  adorn_pct_formatting()
+print(tabla_cat)
+
+# GRÁFICO: Barras (ordenadas de mayor a menor)
+ggplot(df_final, aes(x = fct_infreq(estado), fill = estado)) +
+  geom_bar(color = "black") +
+  labs(title = "Distribución de Frecuencias", subtitle = "Estado al finalizar la carrera", x = "Estado", y = "Cantidad") +
+  theme_minimal() + theme(legend.position = "none")
+```
+
+A partir de la tabla y el gráfico de barras, se puede observar que la categoría predominante en la variable estado es "Completada", lo cual indica que la gran mayoría de los autos logran terminar la carrera.
+
+## 3.2. Variable Numérica (Cuantitativa): Tiempo de Carrera en Minutos
+
+```{r univariado-num}
+# MEDIDAS RESUMEN
+resumen_num <- df_final %>%
+  summarise(
+    Min = min(minutos_carrera, na.rm = TRUE),
+    Q1 = quantile(minutos_carrera, 0.25, na.rm = TRUE),
+    Mediana = median(minutos_carrera, na.rm = TRUE),
+    Media = mean(minutos_carrera, na.rm = TRUE),
+    Q3 = quantile(minutos_carrera, 0.75, na.rm = TRUE),
+    Max = max(minutos_carrera, na.rm = TRUE),
+    Desvio = sd(minutos_carrera, na.rm = TRUE),
+    N = n()
+  )
+print(resumen_num)
+
+# GRÁFICO: Histograma
+ggplot(df_final, aes(x = minutos_carrera)) +
+  geom_histogram(bins = 15, fill = "steelblue", color = "black") +
+  labs(title = "Histograma", subtitle = "Distribución del Tiempo de Carrera", x = "Tiempo (Minutos)", y = "Frecuencia") +
+  theme_minimal()
+```
+
+El análisis de la variable minutos_carrera indica que la muestra tiene una distribución asimétrica. En promedio, el valor es cercano a los 90 minutos, lo que coincide con la duración estándar de una carrera de Fórmula 1.
+
+# 4. ANÁLISIS BIVARIADO
+
+## 4.1. Numérica vs Categórica: Tiempo de Carrera según Lluvia
+
+```{r bivariado-num-cat}
+# TABLA: Medidas resumen separadas por grupo
+resumen_grupo <- df_final %>%
+  group_by(lluvia) %>%
+  summarise(
+    Mediana = median(minutos_carrera, na.rm = TRUE),
+    Media = mean(minutos_carrera, na.rm = TRUE),
+    Desvio = sd(minutos_carrera, na.rm = TRUE),
+    N = n()
+  )
+print(resumen_grupo)
+
+# GRÁFICO: Boxplot comparativo
+ggplot(df_final, aes(x = as.character(lluvia), y = minutos_carrera, fill = as.character(lluvia))) +
+  geom_boxplot() +
+  labs(title = "Distribución de Tiempos por Condición Climática", x = "¿Hubo Lluvia? (TRUE/FALSE)", y = "Tiempo de Carrera (Minutos)") +
+  theme_minimal() + theme(legend.position = "none")
+```
+
+Al analizar la distribución de tiempos segmentada por lluvia, el gráfico de cajas revela diferencias notorias entre los grupos. Específicamente, el grupo con lluvia (TRUE) presenta una mediana mayor y tiempos más prolongados en general, sugiriendo un ritmo más lento debido a la pista mojada.
+
+## 4.2. Categórica vs Categórica: Estado según Lluvia
+
+```{r bivariado-cat-cat}
+# TABLA: Tabla cruzada con porcentajes (Independiente en columna, Dependiente en fila)
+tabla_cruzada <- tabyl(df_final, estado, lluvia) %>% 
+  adorn_percentages("col") %>% 
+  adorn_pct_formatting(digits = 1) %>% 
+  adorn_ns() # Agrega la "n" original entre paréntesis
+print(tabla_cruzada)
+
+# GRÁFICO: Barras apiladas al 100%
+ggplot(df_final, aes(x = as.character(lluvia), fill = estado)) +
+  geom_bar(position = "fill", color = "black") +
+  labs(title = "Proporción de Estados por Condición Climática", x = "¿Hubo Lluvia?", y = "Proporción", fill = "Estado de Carrera") +
+  theme_minimal()
+```
+
+La tabla cruzada y el gráfico de barras apiladas al 100% muestran la relación entre la condición climática y el estado de finalización. Se evidencia visualmente cómo cambian las proporciones de abandonos o accidentes cuando las condiciones son adversas.
+
+## 4.3. Numérica vs Numérica: Posición Inicial vs Posición Final
+
+```{r bivariado-num-num}
+# CORRELACIÓN: Coeficiente de Pearson
+correlacion <- cor(df_final$pos_inicial, df_final$pos_final, use = "complete.obs")
+print(correlacion)
+
+# GRÁFICO: Dispersión (Scatterplot)
+ggplot(df_final, aes(x = pos_inicial, y = pos_final)) +
+  geom_point(alpha = 0.6, color = "darkred", size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+  labs(title = "Relación Lineal: Largada vs Llegada", x = "Posición de Largada (Grilla)", y = "Posición Final") +
+  theme_minimal()
+```
+
+El diagrama de dispersión y el coeficiente de correlación de Pearson indican la existencia de una fuerte relación lineal positiva entre la posición inicial y la final. Es decir, largar en las primeras posiciones está fuertemente asociado a terminar la carrera entre los primeros lugares.
