@@ -34,6 +34,7 @@ La organización de los archivos en el repositorio es la siguiente:
 
 - `data/`: Directorio que almacena los conjuntos de datos originales (`carreras.csv`, `conductores.csv`, `constructores.csv`, `resultados.csv`).
 - `analisis_f1.Rmd`: Archivo fuente en R Markdown. Contiene la totalidad del código fuente, el proceso de limpieza y el análisis estadístico detallado.
+- `analisis_f1.pdf`: **Reporte final compilado** listo para leer, con todos los resultados y gráficos del análisis.
 - `README.md`: Documentación principal del proyecto.
 
 ## Alcance del Análisis
@@ -54,7 +55,7 @@ Para replicar o revisar el análisis en un entorno local, siga estos pasos:
 
 1. Clonar el repositorio en su equipo local:
    ```bash
-   git clone https://github.com/tu-usuario/AED-Formula1.git
+   git clone https://github.com/lfmen/AEDFormula1.git
    ```
 2. Abrir el archivo `analisis_f1.Rmd` utilizando **RStudio**.
 3. Asegurarse de tener instalados los paquetes necesarios ejecutando:
