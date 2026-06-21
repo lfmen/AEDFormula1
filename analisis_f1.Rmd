@@ -33,8 +33,9 @@ df_unido <- left_join(resultados, carreras, by = "id_carrera")
 df_unido <- left_join(df_unido, conductores, by = "id_conductor")
 df_unido <- left_join(df_unido, constructores, by = "id_constructor")
 
-# Limpieza final de valores nulos
-df_limpio <- df_unido %>% drop_na()
+# Limpieza final (eliminamos el drop_na global que borraba los autos que no terminaron)
+df_limpio <- df_unido
+
 ```
 
 # 2. TRANSFORMACIÓN DE DATOS (VERBOS DPLYR)
@@ -43,16 +44,16 @@ df_limpio <- df_unido %>% drop_na()
 df_final <- df_limpio %>%
   # Crear nueva columna para tener el tiempo en minutos en vez de milisegundos
   mutate(minutos_carrera = milisegundos / 60000) %>%
-  # Filtrar carreras extremadamente cortas o atípicas (ej. menores a 30 mins)
-  filter(minutos_carrera > 30) %>%
+  # Filtrar carreras extremadamente cortas o atípicas, pero manteniendo los que no terminaron (NA)
+  filter(minutos_carrera > 30 | is.na(minutos_carrera)) %>%
   # Seleccionar columnas relevantes para el análisis
-  select(id_resultado, nombre_x, nombre_y, apellido, nacionalidad_x,
+  select(id_resultado, nombre.x, nombre, apellido, nacionalidad.x,
          lluvia, estado, pos_inicial, pos_final, minutos_carrera) %>%
   # Renombrar columnas para evitar confusiones post-join
   rename(
-    nombre_carrera = nombre_x,
-    nombre_escuderia = nombre_y,
-    nacionalidad_piloto = nacionalidad_x
+    nombre_carrera = nombre.x,
+    nombre_escuderia = nombre,
+    nacionalidad_piloto = nacionalidad.x
   ) %>%
   # Ordenar de mayor a menor tiempo
   arrange(desc(minutos_carrera))
@@ -157,7 +158,7 @@ print(correlacion)
 
 # GRÁFICO: Dispersión (Scatterplot)
 ggplot(df_final, aes(x = pos_inicial, y = pos_final)) +
-  geom_point(alpha = 0.6, color = "darkred", size = 2) +
+  geom_jitter(alpha = 0.5, color = "darkred", size = 2, width = 0.3, height = 0.3) +
   geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
   labs(title = "Relación Lineal: Largada vs Llegada", x = "Posición de Largada (Grilla)", y = "Posición Final") +
   theme_minimal()
